@@ -1,0 +1,103 @@
+create user project identified by project;
+
+grant dba to project;
+connect
+Enter user-name: project/project
+
+create table user_details(account_number number(11) primary key,
+ first_name varchar2(20) not null,
+ last_name varchar2(20) not null,
+ age number(2) check (age>=18) not null,
+ phone_no number(10) check (phone_no>999999999) not null,
+ password varchar2(20) check (length(password)>7) not null,
+ pin number(4) check (pin>999) not null,
+ email_id varchar2(50) not null,
+ amount number(10,2) check(amount>=0) not null);
+
+create table transaction_withdraw(transaction_id number(5) primary key,
+ account_number number(11) references user_details(account_number),
+ benfeciary number(11) references user_details(account_number),
+ amount number(10,2) check(amount>=0) not null);
+
+create table transaction_deposit(transaction_id number(5) primary key,
+ account_number number(11) references user_details(account_number),
+ creditor number(11) references user_details(account_number),
+ amount number(10,2) check(amount>=0) not null);
+
+create sequence txn_id
+ start with 10000
+ increment by 1
+ maxvalue 99999;
+
+create sequence  acc_no
+ start with 10000000000
+ increment by 1
+ maxvalue 999999999999;
+
+create or replace procedure transfer(beneficiary in number,payee in number,amt in number,msg out varchar2)
+is
+c1 number;
+c2 number;
+c3 number;
+c4 number;
+begin
+update user_details set amount=amount-amt where account_number=payee;
+c1 :=sql%rowcount;
+update user_details set amount=amount+amt where account_number=beneficiary;
+c2 :=sql%rowcount;
+if c1=1 and c2=1 then
+ insert into transaction_withdraw values(txn_id.nextval,payee,beneficiary,amt);
+  c3 :=sql%rowcount;
+  insert into transaction_deposit values(txn_id.currval,beneficiary,payee,amt);
+  c4 :=sql%rowcount;
+   if c3=1 and c4=1 then 
+     commit;
+     msg:='Transaction Successful';
+  else
+   rollback;
+   msg:='Transaction Unsuccessful';
+  end if;
+else
+   rollback;
+   msg:='Invalid Beneficiary Account Number';
+end if;
+end;
+/
+
+create or replace procedure withdraw(payee in number,amt in number,msg out varchar2)
+is
+c1 number;
+c2 number;
+begin
+update user_details set amount=amount-amt where account_number=payee;
+c1 :=sql%rowcount;
+insert into transaction_withdraw values(txn_id.nextval,payee,payee,amt);
+ c2 :=sql%rowcount;
+if c1=1 and c2=1 then
+     commit;
+     msg:='Transaction Successful';
+else
+   rollback;
+   msg:='Transaction Unsuccessful';
+end if;
+end;
+/
+
+create or replace procedure deposit(payee in number,amt in number,msg out varchar2)
+is
+c1 number;
+c2 number;
+begin
+update user_details set amount=amount+amt where account_number=payee;
+c1 :=sql%rowcount;
+insert into transaction_deposit values(txn_id.nextval,payee,payee,amt);
+ c2 :=sql%rowcount;
+if c1=1 and c2=1 then
+     commit;
+     msg:='Transaction Successful';
+else
+   rollback;
+   msg:='Transaction Unsuccessful';
+end if;
+end;
+/
